@@ -1,0 +1,4 @@
+paddlepaddle-gpu==0.0.0.post116
+numpy==1.20.3
+matplotlib==3.2.2
+sympy==1.11.1
