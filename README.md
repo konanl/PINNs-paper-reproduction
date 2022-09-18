@@ -2,6 +2,10 @@
 
 [比赛链接](https://aistudio.baidu.com/aistudio/competition/detail/406/0/introduction)
 
+- #### 论文复现要求：![论文复现要求](./figure/gPINNs复现要求.png)
+
+
+
 #### 参考资料：
 
 1. [deepxde文档](https://deepxde.readthedocs.io/en/latest/index.html)
