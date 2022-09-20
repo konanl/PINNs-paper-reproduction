@@ -23,8 +23,6 @@ The Partial Differential Function is:
 '''
 
 # Analytical solution
-
-# poisson 方程解析解
 def Poisson_sol(x):
     """ The Analytical Solution of Poisson Eqution"""
     sol = x + 1 / 8 * paddle.sin(8 * x)
@@ -32,7 +30,6 @@ def Poisson_sol(x):
         sol += 1 / i * paddle.sin(i * x)
     return sol
 
-# poisson 方程解析解一阶梯度
 def Poisson_sol_gred(x):
     """ The Gredient of Poisson Eqution`s Analytical Solution """
     du = 1 + paddle.cos(8 * x)
@@ -40,7 +37,6 @@ def Poisson_sol_gred(x):
         du += paddle.cos(i * x)
     return du
 
-# pinns 
 class Poisson_gpinns(nn.Layer):
     """ PINNs & gPINNs solving 1D Poisson Equations """
     def __init__(self, x, layers, w_g=0):
@@ -69,21 +65,35 @@ class Poisson_gpinns(nn.Layer):
         return x + paddle.tanh(x) * paddle.tanh(np.pi - x) * self.fc_net(x)
     
     def poisson_sol(self, x):
-        # poisson 方程解析解
         sol = x + 1 / 8 * paddle.sin(8 * x)
         for i in range(1, 5):
             sol += 1 / i * paddle.sin(i * x)
         return sol
     
+    def poisson_sol_gred(self, x):
+        """ The Gredient of Poisson Eqution`s Analytical Solution """
+        dsol = 1 + paddle.cos(8 * x)
+        for i in range(1, 5):
+            dsol += paddle.cos(i * x)
+        return dsol
+    
+    def net_gred(self, x):
+        x.stop_gradient = False
+        u = self.fc_net(x)
+        du = paddle.grad(u, x, retain_graph=True, create_graph=True)[0]
+        return du
+    
     def loss(self, x):
         """ L = L_f + w_g * L_g """
-        loss = paddle.mean(paddle.square(self.pde(x))) + self.w_g * paddle.mean(paddle.square(self.pde_g(x))) 
+        loss = paddle.mean(paddle.square(self.pde(x))) + self.w_g * paddle.mean(paddle.square(self.pde_g(x))) \
+        + paddle.mean(paddle.square(self.fc_net(x) - self.poisson_sol(x))) \
+        + paddle.mean(paddle.square(self.net_gred(x) - self.poisson_sol_gred(x)))
         return loss
     
     def pde(self, x):
         """ loss PDE """
         x.stop_gradient = False
-        u = self.forward(x)
+        u = self.fc_net(x)
         du_x = paddle.grad(u, x, retain_graph=True, create_graph=True)[0]
         du_xx = paddle.grad(du_x, x, retain_graph=True, create_graph=True)[0]
         
@@ -96,9 +106,11 @@ class Poisson_gpinns(nn.Layer):
     def pde_g(self, x):
         """ The gradient of PDE """
         x.stop_gradient = False
-        u = self.pde(x)
-        du_x = paddle.grad(u, x, retain_graph=True, create_graph=True)[0]
-        return  - du_x
+        # u = self.fc_net(x)
+        du_xx = self.pde(x)
+        du_xxx = paddle.grad(du_xx, x, retain_graph=True, create_graph=True)[0]
+            
+        return  - du_xxx
     
     def train(self, epochs):
         """ Train """
@@ -107,7 +119,7 @@ class Poisson_gpinns(nn.Layer):
         loss_sum = 0
         loss_alt = []
         for epoch in range(epochs):
-            loss = paddle.mean(paddle.square(self.loss(x)))
+            loss = self.loss(x)
             loss_alt.append([loss])
             loss_sum += loss
             loss.backward()
@@ -137,9 +149,6 @@ class Poisson_gpinns(nn.Layer):
         return U, dU_dX
 
 
-
-
-
 if __name__ == '__main__':
     
     # DATA
@@ -158,12 +167,12 @@ if __name__ == '__main__':
     paddle.device.set_device('gpu')
     
     # train pinns
-    print(' Train PINNs ... ')
+    print(' #################### Train PINNs #################### ')
     model_pinns = (Poisson_gpinns(x, [1, 20, 20, 20, 1]))
     model_pinns.train(20000)
     
     # train gpinns
-    print(' Train gPINNs ... ')
+    print(' #################### Train gPINNs #################### ')
     model_gpinns = (Poisson_gpinns(x, [1, 20, 20, 20, 1], w_g = 0.01))
     model_gpinns.train(20000)
     
