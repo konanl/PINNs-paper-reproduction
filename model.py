@@ -10,7 +10,7 @@ from collections import OrderedDict
 
 
 class FCNN(nn.Layer):
-    def __init__(self, layers):
+    def __init__(self, layers, nn_init):
         super(FCNN, self).__init__()
         
         # parameters
@@ -20,10 +20,10 @@ class FCNN(nn.Layer):
         layer_list = list()
         
         for layer in range(self.depth - 1):
-            layer_list.append(nn.Linear(layers[layer], layers[layer+1]))
+            layer_list.append(nn.Linear(layers[layer], layers[layer+1], weight_attr=nn_init, bias_attr=nn_init))
             layer_list.append(nn.Tanh())
         
-        layer_list.append(nn.Linear(layers[-2], layers[-1]))
+        layer_list.append(nn.Linear(layers[-2], layers[-1], weight_attr=nn_init, bias_attr=nn_init))
         
         # net
         self.main = nn.Sequential(*layer_list)
