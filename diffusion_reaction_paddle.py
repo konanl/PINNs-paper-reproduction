@@ -1,7 +1,6 @@
 import paddle
 import paddle.nn as nn
 import paddle.optimizer as optim
-# import paddlescience as psci
 from model import FCNN
 import numpy as np
 import matplotlib.pyplot as plt
@@ -20,8 +19,6 @@ The Partial Differential Equations is:
     \frac{\partial u}{\partial t} = D\frac{\partial^2 u}{\partial x^2} + R(x,t)
     
     R(x,t) = e^{-t}[\frac{3}{2}\sin(2x) + \frac{8}{3}\sin(3x) + \frac{15}{4}\sin(4x) + \frac{63}{8}\sin(8x)] 
-
-
 '''
 
 np.random.seed(142589)
@@ -313,14 +310,14 @@ if __name__ == '__main__':
     # train pinns
     print('Train Success ... ')
     model_pinn = Diffusion_Reaction_pinns(X, [2, 20, 20, 20, 1])
-    model_pinn.train(70000)
+    model_pinn.train(60000)
     
     print('Train Success... ')
     model_gpinn = Diffusion_Reaction_gpinns(X, [2, 20, 20, 20, 1])
-    model_gpinn.train(70000)
+    model_gpinn.train(60000)
     
     ########## plot ##########
-    plt.rcParams.update({"font.size": 22})
+    plt.rcParams.update({"font.size": 16})
     
     # generate test data
     X = gen_test_x(100)
@@ -410,4 +407,3 @@ if __name__ == '__main__':
     
     ##########################
     
-        

@@ -1,295 +1,246 @@
+#!/usr/bin/env python
+# -*- coding: UTF-8 -*-
+"""
+@Project ：gPINNs_re 
+@File    ：function_paddle.py
+@Author  ：LiangL. Yan
+@Date    ：2022/9/26 17:23 
+"""
+
+import argparse
+from model import FCNet, PhysicsInformedNeuralNetwork, gradients
 import paddle
 import paddle.nn as nn
-import paddle.optimizer as optim
-import paddlescience as psci
 import numpy as np
+from process_data import Data
+from pde import function, function_grad
+from solver import Solver
+import os
 import matplotlib.pyplot as plt
-import sympy
-import random
-import time
+
+############################
+## Function Approximation ##
+############################
 
 
-###############################
-#    train gPINNs function    #
-###############################
+"""
+    The task is function approximation.
 
-'''
-The Function is:
-    
-    u(x) = -(1.4 - 3 * x) * sin(18 * x) , x->[0,1]
+    The  Function is:
 
-'''
+        u(x) = -(1.4 - 3 * x) * sin(18 * x) , x->[0,1] 
 
-# Define Analytical solution
-def func(x):
-    return -(1.4 - 3 * x) * np.sin(18 * x)
+"""
 
-def func_grad(x):
-    return 3 * np.sin(18 * x) + 18 * (3 * x - 1.4) * np.cos(18 * x)
+# Save the config
+parser = argparse.ArgumentParser()
 
+# Training configurations.
+parser.add_argument('--lr', type=float, default=0.001, help='learning rate')
+parser.add_argument('--num_epochs', type=int, default=10000, help='number of total iterations for training')
+parser.add_argument('--resume_epochs', type=int, default=None, help='resume training from this step')
+parser.add_argument('--training_points', type=int, default=None, help='training point in domain or boundary')
 
-# Define Full Connection Neural Network
-class FCnet(nn.Layer):
-    def __init__(self):
-        super(FCnet, self).__init__()
-        
-        # neural network
-        layers = []
-        layers.append(nn.Linear(1, 20))
-        layers.append(nn.Tanh())
-        
-        for i in range(2):
-            layers.append(nn.Linear(20, 20))
-            layers.append(nn.Tanh())
-        
-        layers.append(nn.Linear(20, 1))
-        
-        self.FC_net = nn.Sequential(*layers)
-        
-    def forward(self, x):
-        return self.FC_net(x)
-    
+# Test configuration.
+parser.add_argument('--test_epochs', type=int, default=1000, help='how long we should test model')
 
-# Define PINNs Using the Frame of PaddlePaddle
-class PINNs_func_Paddle(nn.Layer):
-    def __init__(self, x):
-        super(PINNs_func_Paddle, self).__init__()
-        
-        # DATA
-        self.x = x
-        # self.u = u
-        
-        # full connection neural networks
-        self.fc_net = FCnet()
-        
-        self.optimizer = optim.Adam(parameters=self.fc_net.parameters())
-        
-    def forward(self):
-        self.optimizer.clear_grad()
-        u_pred = self.net_u(paddle.to_tensor(self.x, dtype='float32'))
-        y_true = self.net_f(paddle.to_tensor(self.x, dtype='float32'))
-        
-        return u_pred, y_true
-    
-    def initialize_NN(self, layers):
-        pass
-    
-    def net_u(self, x):
-        u = self.fc_net(x)
-        return u
-    
-    def net_f(self, x):# NNfunc()
-        f = -(1.4 - 3 * x) * paddle.sin(18 * x)
-        return f
-    
-    def loss_func(self):
-        pass
-    
-    def train(self, nIter):
-        
-        start_time = time.time()
-        print("########## Train PINNs ##########")
-        loss_sum = 0
-        loss_alt = []
-        for i in range(nIter):
-            u_pred, f_true = self.forward()
-            loss = paddle.mean(paddle.square(u_pred - f_true))
-            loss_alt.append([loss])
-            loss_sum += loss
-            loss.backward()
-            self.optimizer.minimize(loss)
-            self.optimizer.step()
-            self.optimizer.clear_grad()
-            if i % 100 == 0:
-                elapsed = time.time() - start_time
-                loss_mean = loss_sum / (i+1)
-                print(
-                    'It: %d, Loss: %.3e, Mean Loss: %.3e, Time: %.2f' %
-                (
-                    i, loss, loss_mean, elapsed
-                )
-                     )
-        mean_loss = np.sum(loss_alt)/(nIter+1)
-        print('It: %d, Mean Loss: %.3e' % (nIter, mean_loss))
-                            
-    def predict(self, X):
-        self.fc_net.eval()
-        u = self.net_u(X)
-        print('u has been predicted!')
-        return u
-    
-    def predict_grad(self, X):
-        self.fc_net.eval()
-        X.stop_gradient = False
-        U = self.net_u(X)
-        du_dx = paddle.grad(U, X,  retain_graph=False, create_graph=False)[0]
-        print('u` has been predicted!')
-        return du_dx
+# Directories.
+parser.add_argument('--model_save_dir', type=str, default='.\\models')
+parser.add_argument('--result_dir', type=str, default='.\\results')
+
+# Step size.
+parser.add_argument('--log_step', type=int, default=1000)
+parser.add_argument('--model_save_step', type=int, default=1000)
+
+config = parser.parse_args()
+print(config)
+
+# Create directories if not exist.
+# if not os.path.exists(config.log_dir):
+#     os.makedirs(config.log_dir)
+if not os.path.exists(config.model_save_dir):
+    os.makedirs(config.model_save_dir)
+# if not os.path.exists(config.sample_dir):
+#     os.makedirs(config.sample_dir)
+if not os.path.exists(config.result_dir):
+    os.makedirs(config.result_dir)
 
 
-class PINNs_gfunc_Paddle(nn.Layer):
-    def __init__(self, x):
-        super(PINNs_gfunc_Paddle, self).__init__()
-        
-        # DATA
-        self.x = x
-        
-        # full connection neural networks
-        self.fc_net = FCnet()
-        
-        # optimizer
-        self.optimizer = optim.Adam(parameters=self.fc_net.parameters())
-        
-    def forward(self, x):
-        self.optimizer.clear_grad()
-        return self.loss(x)
-    
-    def loss(self, x):
-        w_f = 1
-        w_g = 1
-        loss = w_f * self.loss_f(x) + w_g * self.loss_g(x)
-        return loss
-    
-    def func(self, x):
-        y = -(1.4 - 3 * x) * paddle.sin(18 * x)
-        return y
-    
-    def func_grad(self, x):
-        dy_dx = 3 * paddle.sin(18 * x) - 18 * (1.4 - 3 * x) * paddle.cos(18 * x)
-        return dy_dx
-    
-    def loss_f(self, x):
-        u_pred = self.fc_net(x)
-        loss_f = paddle.mean(paddle.square(u_pred - self.func(x)))
-        return loss_f
-    
-    def loss_g(self, x):
-        x.stop_gradient = False
-        u_pred = self.fc_net(x)
-        du_dx = paddle.grad(u_pred, x, retain_graph=True, create_graph=True)[0]
-        dy_dx = self.func_grad(x)
-        loss_g = paddle.mean(paddle.square(du_dx - dy_dx))
-        return loss_g
-    
-    def train(self, nIter):
-        start_time = time.time()
-        print("########## Train gPINNs ##########")
-        loss_sum = 0
-        loss_alt = []
-        for i in range(nIter):
-            loss = self.forward(x)
-            loss_alt.append([loss])
-            loss_sum += loss
-            loss.backward()
-            self.optimizer.minimize(loss)
-            self.optimizer.step()
-            self.optimizer.clear_grad()
-            if i % 100 == 0:
-                elapsed = time.time() - start_time
-                loss_mean = loss_sum / (i+1)
-                print(
-                    'It: %d, Loss: %.3e, Mean Loss: %.3e, Time: %.2f' %
-                (
-                    i, loss, loss_mean, elapsed
-                )
-                     )
-        mean_loss = np.sum(loss_alt)/(nIter+1)
-        print('It: %d, Mean Loss: %.3e' % (nIter, mean_loss)) 
-    
-    def predict(self, X):
-        self.fc_net.eval()
-        u = self.fc_net(X)
-        print('u has been predicted!')
-        return u
-    
-    def predict_grad(self, X):
-        self.fc_net.eval()
-        X.stop_gradient = False
-        U = self.fc_net(X)
-        du_dx = paddle.grad(U, X,  retain_graph=False, create_graph=False)[0]
-        print('u` has been predicted!')
-        return du_dx
+#################### PINNs ####################
+# Pde loss.
+def NNFunc(x, y):
+    return [y + (1.4 - 3 * x) * paddle.sin(18 * x)]
 
 
-if __name__ == '__main__':
-    
-    # DATA
-    # Randomly Take 15 Training Points Between 0 and 1
-    LARGE_INT = 1000000
-    data_list = []
-    for i in range(30):
-        data_random = random.randint(0, LARGE_INT)*1.0/LARGE_INT
-        if data_random not in data_list:
-            data_list.append(data_random)
-            
-    x = paddle.reshape(paddle.to_tensor(data_list, dtype='float32'), [30, 1])
-    
-    # Train on the GPU
-    paddle.device.set_device('gpu')
-    
-    # Train with PINNs
-    model_pinn = PINNs_func_Paddle(x)
-    model_pinn.train(10000)
-    
-    # Train with gPINNs
-    model_gpinn = PINNs_gfunc_Paddle(x)
-    model_gpinn.train(10000)
-    
-    # Predict
-    # a = paddle.to_tensor(0.5, dtype='float32')
-    # a_pred_pinn = model_pinn.predict(a)
-    # a_pred_gpinn = model_gpinn.predict(a)
-    # a_true = func(0.5)
-    # print("The True Value of %.3e is %.3e" % (0.5, a_true))
-    # print("The Predict of PINNs is: %.3e \nThe Predict of gPINNs is: %.3e" % (a_pred_pinn, a_pred_gpinn))
-    
-    #####################
-    ## plot the figure ##
-    #####################
-    
-    plt.rcParams.update({"font.size": 16})
-    
-    # ===== figure C =====
-    plt.figure()
-    # true
-    x0 = paddle.reshape(paddle.to_tensor(np.linspace(0, 1, 1000)), (1000, 1))
-    plt.plot(x0, func(np.array(x0)), label="Exact", color="black")
-    
-    x1 = paddle.reshape(paddle.to_tensor(np.linspace(0, 1, 15)), (15, 1))
-    plt.plot(x1, func(np.array(x1)), color="black", marker="o", linestyle="none")
-    
-    # predict
-    plt.plot(x0, model_pinn.predict(paddle.to_tensor(x0, dtype='float32')).numpy(),\
-             label="NN", color="blue", linestyle="dashed")
-    plt.plot(x0, model_gpinn.predict(paddle.to_tensor(x0, dtype='float32')).numpy(),\
-             label="gNN", color="red", linestyle="dashed")
-    
-    # label and others params
-    plt.xlabel("x")
-    plt.ylabel("u")
-    plt.legend(frameon=False)
-    plt.savefig('./figure/function/u.png')
-    plt.show()
-    
-    # ===== figure D =====
-    plt.figure()
-    
-    # true
-    x0_g = paddle.reshape(paddle.to_tensor(np.linspace(0, 1, 1000)), (1000, 1))
-    plt.plot(x0_g, func_grad(np.array(x0_g)), label="Exact", color="black")
-    
-    x1_g = paddle.reshape(paddle.to_tensor(np.linspace(0, 1, 15)), (15, 1))
-    plt.plot(x1_g, func_grad(np.array(x1_g)), color="black", marker="o", linestyle="none")
-    
-    # predict
-    plt.plot(x0_g, model_pinn.predict_grad(paddle.to_tensor(x0_g, dtype='float32')).numpy(),\
-             label="NN", color="blue", linestyle="dashed")
-    plt.plot(x0_g, model_gpinn.predict_grad(paddle.to_tensor(x0_g, dtype='float32')).numpy(),\
-         label="gNN", color="red", linestyle="dashed")
-    
-    # label and others params
-    plt.xlabel("x")
-    plt.ylabel("u'")
-    plt.legend(frameon=False)
-    plt.savefig('./figure/function/u`.png')
-    plt.show()
+# Analytical solution
+# def func(x):
+#     return -(1.4 - 3 * x) * np.sin(18 * x)
+func, func_grad = function, function_grad
+
+# Data
+data = Data([13, 2], [0, 1], "uniform", nums_test=100)
+
+# Neural Network
+initializer = nn.initializer.XavierUniform()
+net_pinns = FCNet([1] + [20] * 3 + [1], nn_init=initializer)
+optimizer = "Adam"
+
+# PINNs model
+# The neural network structure net, the pde loss is NNFunc.
+func_PINNs = PhysicsInformedNeuralNetwork(net_pinns, NNFunc, func, optimizer)
+
+# Train the model with module Solver
+solver_PINNs = Solver(data, func_PINNs, config)
+
+# Train
+solver_PINNs.train()
+
+
+#################### gPINNs ####################
+# Pde loss.
+def gNNFunc(x, y):
+    # dy_x = gradients(y, x)
+    # x.stop_gradient = False
+    dy_x = paddle.grad(y, x, retain_graph=True, create_graph=True)[0]
+
+    return [
+        y + (1.4 - 3 * x) * paddle.sin(18 * x),
+        dy_x + 18 * (1.4 - 3 * x) * paddle.cos(18 * x) - 3 * paddle.sin(18 * x),
+    ]
+
+
+# Neural Network
+net_gpinns = FCNet([1] + [20] * 3 + [1], nn_init=initializer)
+
+# gPINNs model
+# The neural network structure net, the pde loss is NNFunc.
+func_gPINNs = PhysicsInformedNeuralNetwork(net_gpinns, gNNFunc, func, optimizer, w_g=1)
+
+# Train the model with module Solver
+solver_gPINNs = Solver(data, func_gPINNs, config)
+
+# Train
+solver_gPINNs.train()
+
+# Plot.
+plt.rcParams.update({"font.size": 16})
+#################### Figure 1. C, D ####################
+# Figure C
+plt.figure()
+
+# true
+x0 = np.reshape(np.linspace(0, 1, 1000), (1000, 1))
+plt.plot(x0, func(x0), label="Exact", color="black")
+
+x1 = np.reshape(np.linspace(0, 1, 15), (15, 1))
+plt.plot(x1, func(x1), color="black", marker="o", linestyle="none")
+
+# predict
+# pinns
+u_pred_pinns = solver_PINNs.predict(paddle.to_tensor(x0, dtype='float32'))[0].numpy()
+plt.plot(x0, u_pred_pinns, label="NN", color="blue", linestyle="dashed")
+# gpinns
+u_pred_gpinns = solver_gPINNs.predict(paddle.to_tensor(x0, dtype='float32'))[0].numpy()
+plt.plot(x0, u_pred_gpinns, label="gNN", color="red", linestyle="dashed")
+
+# label and others params
+plt.xlabel("x")
+plt.ylabel("u")
+plt.legend(frameon=False)
+plt.savefig('.\\result\\figure\\function\\u.png', dpi=120)
+
+# Figure D
+plt.figure()
+
+# true
+x0_g = np.reshape(np.linspace(0, 1, 1000), (1000, 1))
+plt.plot(x0_g, func_grad(x0_g), label="Exact", color="black")
+
+x1_g = np.reshape(np.linspace(0, 1, 15), (15, 1))
+plt.plot(x1_g, func_grad(np.array(x1_g)), color="black", marker="o", linestyle="none")
+
+u_g_pred_pinns = solver_PINNs.predict(paddle.to_tensor(x0_g, dtype='float32'))[1].numpy()
+plt.plot(x0_g, u_g_pred_pinns, label="NN", color="blue", linestyle="dashed")
+
+u_g_pred_gpinns = solver_gPINNs.predict(paddle.to_tensor(x0_g, dtype='float32'))[1].numpy()
+plt.plot(x0_g, u_g_pred_gpinns, label="gNN", color="red", linestyle="dashed")
+
+# label and others params
+plt.xlabel("x")
+plt.ylabel("u`")
+plt.legend(frameon=False)
+plt.savefig('.\\result\\figure\\function\\u`.png', dpi=120)
+# plt.show()
+
+#################### Figure 1. A, B ####################
+training_points = np.linspace(5, 30, 26)
+
+l2_error_u = {}
+l2_error_u_g = {}
+# mean_pde_residual = {}
+
+for training_point in training_points:
+    training_point = int(training_point)
+    print("#### Start training with training point: {} ####".format(training_point))
+
+    # DATA.
+    data_f_ab = Data([training_point - 2, 2], [0, 1], 'random', 100)
+
+    # Training with different training points.
+    # Training PINNs.
+    solver_PINNs = Solver(data_f_ab, func_PINNs, config)
+    solver_PINNs.train()
+
+    # Training gPINNs.
+    solver_gPINNs = Solver(data_f_ab, func_gPINNs, config)
+    solver_gPINNs.train()
+
+    # Save loss.
+    y_true_u, y_true_u_g = function(data_f_ab.test_data), function_grad(data_f_ab.test_data)
+
+    # PINNs.
+    y_pred_u_pinns, y_pred_u_g_pinns = solver_PINNs.predict(data_f_ab.test_data)[0], \
+                                       solver_PINNs.predict(data_f_ab.test_data)[1]
+    l2_u_pinn = solver_PINNs.l2_relative_error(y_true_u, y_pred_u_pinns)
+    l2_u_g_pinn = solver_PINNs.l2_relative_error(y_true_u_g, y_pred_u_g_pinns)
+
+    # gPINNs
+    y_pred_u_gpinns, y_pred_u_g_gpinns = solver_gPINNs.predict(data_f_ab.test_data), \
+                                         solver_gPINNs.predict(data_f_ab.test_data)
+    l2_u_gpinn = solver_gPINNs.l2_relative_error(y_true_u, y_pred_u_gpinns)
+    l2_u_g_gpinn = solver_gPINNs.l2_relative_error(y_true_u_g, y_pred_u_g_gpinns)
+
+    # Add loss in dict.
+    l2_error_u['training_point-{}'.format(training_point)] = [l2_u_pinn, l2_u_gpinn]
+    l2_error_u_g['training_point-{}'.format(training_point)] = [l2_u_g_pinn, l2_u_g_gpinn]
+
+# Add loss in different PINNs loss.
+l2_pinn_u = []
+l2_gpinn_u = []
+l2_pinn_u_g = []
+l2_gpinn_u_g = []
+
+for i in training_points:
+    l2_pinn_u.append(l2_error_u['training_point-{}'.format(int(i))][0])
+    l2_gpinn_u.append(l2_error_u['training_point-{}'.format(int(i))][1])
+    l2_pinn_u_g.append(l2_error_u_g['training_point-{}'.format(int(i))][0])
+    l2_gpinn_u_g.append(l2_error_u_g['training_point-{}'.format(int(i))][1])
+
+# Figure A.
+plt.figure(dpi=120)
+plt.plot(training_points, l2_pinn_u, 'o-', color='b', label='NN')
+plt.plot(training_points, l2_gpinn_u, 's-', color='red', label='gNN')
+plt.xlabel('No. of training points')
+plt.ylabel(r'L^2'' relative error of u')
+plt.legend(frameon=False, loc='best', fontsize=10)
+plt.savefig('.\\result\\figure\\function\\figure1_A.png', dpi=120)
+
+# Figure B
+plt.figure(dpi=120)
+plt.plot(training_points, l2_pinn_u_g, 'o-', color='b', label='NN')
+plt.plot(training_points, l2_gpinn_u_g, 's-', color='red', label='gNN')
+plt.xlabel('No. of training points')
+plt.ylabel(r'L^2'' relative error of u`')
+plt.legend(frameon=False, loc='best', fontsize=10)
+plt.savefig('.\\result\\figure\\function\\figure1_B.png', dpi=120)
+plt.show()
