@@ -2,7 +2,7 @@
 
 [比赛链接](https://aistudio.baidu.com/aistudio/competition/detail/406/0/introduction)
 
-- #### 论文复现要求：![论文复现要求](./figure/gPINNs复现要求.png)
+- #### 论文复现要求：![论文复现要求](./gPINNs_paddle/figure/gPINNs复现要求.png)
 
 
 
