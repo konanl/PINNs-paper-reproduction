@@ -53,7 +53,10 @@ class Data(object):
         self.test_data = None
 
         # Generate data
-        self.gen_dataset()
+        if self.num_boundary == 0:
+            self.gen_dataset(boundary=False)
+        else:
+            self.gen_dataset()
 
     def uniform_points(self, n, boundary=True):
         """Generate uniform distribution dataset."""
@@ -95,13 +98,44 @@ class Data(object):
                     self.random_points(self.num_domain),
                     self.random_boundary_points(self.num_boundary).reshape(self.num_boundary, -1))
                 )
-            self.train_data = np.vstack((
-                self.random_points(self.num_domain),
-                self.random_boundary_points(self.num_boundary))
-            )
+            elif self.num_boundary == 0:
+                self.train_data = self.random_points(self.num_domain, random="Hammersley")
+            else:
+                self.train_data = np.vstack((
+                    self.random_points(self.num_domain),
+                    self.random_boundary_points(self.num_boundary))
+                )
         # test data
         self.test_data = self.random_points(self.nums_test)
 
+
+class TimeData(Data):
+    """The class for generate train data and test data with time."""
+    def __init__(self, nums, scope, train_distribution, nums_test=None):
+        """
+        Initialize data class
+        nums:       the size of data --[num.domain, mum.boundary]
+        scope:      the border of data --[left, right]
+            scope.l:        left of scope
+            scope.r:        right of scope
+        train_distribution:     the train distribution: 'uniform', 'random'
+        nums_test:      the size of test data
+        train_data:     the training dataset
+        test_data:      the testing dataset
+        """
+        self.num_domain, self.num_boundary = nums[0], nums[1]
+        self.xl, self.xr = scope[0], scope[1]
+        self.tl, self.tr = scope[2], scope[3]
+        self.train_distribution = train_distribution
+        self.nums_test = nums_test
+        self.train_data = None
+        self.test_data = None
+
+        # Generate data
+        x = Data([self.num_domain, self.num_boundary], [self.xl, self.xr], self.train_distribution, self.nums_test)
+        t = Data([self.num_domain, self.num_boundary], [self.tl, self.tr], self.train_distribution, self.nums_test)
+        self.train_data = np.hstack((x.train_data, t.train_data))
+        self.test_data = np.hstack((x.test_data, t.test_data))
 
 # def gen_dataset(data, boundary=True):
 #     """ Generate dataset with class Data."""

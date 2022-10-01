@@ -49,7 +49,7 @@ class FCNet(nn.Layer):
 class PhysicsInformedNeuralNetwork(nn.Layer):
     """ The Base Class of Physics Informed Neural Network """
 
-    def __init__(self, net_, pde, solution, optimizer_, w_g=0, output_transform=None):
+    def __init__(self, net_, pde, solution, optimizer_, w=[1, 0], output_transform=None):
         super(PhysicsInformedNeuralNetwork, self).__init__()
 
         # Neural network.
@@ -65,34 +65,35 @@ class PhysicsInformedNeuralNetwork(nn.Layer):
         self.optimizer = optimizer_
 
         # weight about the gradient-enhanced loss of gPINNs
-        self.w_g = w_g
+        self.w_f = w[0]
+        self.w_g = w[1]
 
         # Output transform.
         self._output_transform = output_transform
 
     def forward(self, x):
         if self._output_transform:
-            return self._output_transform(self.net(x))
+            return self._output_transform(x, self.net(x))
         else:
             return self.net(x)
 
 
-def gradients(y, x, order=1, create=True):
-    """Automatic Differentiation and Compute the Jacobian determinant."""
-    if order == 1:
-        return paddle.grad(y, x, create_graph=True, retain_graph=True)[0]
-    else:
-        return paddle.stack([paddle.grad([y[:, i].sum()], [x], create_graph=True, retain_graph=True)[0]
-                             for i in range(y.shape[1])], axis=-1)
-
-# def gradients(y, x, order=1, create_graph=True, retain_graph=True):
-#     """Automatic Differentiation."""
-#     x.stop_gradient = False
+# def gradients(y, x, order=1, create=True):
+#     """Automatic Differentiation and Compute the Jacobian determinant."""
 #     if order == 1:
-#         dy = paddle.grad(y, x, create_graph=create_graph, retain_graph=True)[0]
-#         return dy
+#         return paddle.grad(y, x, create_graph=True, retain_graph=True)[0]
 #     else:
-#         return gradients(gradients(y, x), x, order=order - 1)
+#         return paddle.stack([paddle.grad([y[:, i].sum()], [x], create_graph=True, retain_graph=True)[0]
+#                              for i in range(y.shape[1])], axis=-1)
+
+def gradients(y, x, order=1, create_graph=True, retain_graph=True):
+    """Automatic Differentiation."""
+    x.stop_gradient = False
+    if order == 1:
+        dy = paddle.grad(y, x, create_graph=create_graph, retain_graph=True)[0]
+        return dy
+    else:
+        return gradients(gradients(y, x), x, order=order - 1)
 
 
 # TEST

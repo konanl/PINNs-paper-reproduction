@@ -36,7 +36,7 @@ class Solver(object):
         self.lr = config.lr
         self.num_epochs = config.num_epochs
         self.resume_epochs = config.resume_epochs
-        self.training_points = config.training_points
+        # self.training_points = config.training_points
 
         # Test configurations.
         # how much step we should test
@@ -52,6 +52,9 @@ class Solver(object):
 
         # Initialize model
         self.build_model()
+
+        # PDE loss
+        # self.pde_loss = None
 
     def build_model(self):
         """Create PINNs or gPINNs."""
@@ -102,13 +105,21 @@ class Solver(object):
 
     def loss(self, x, y):
         """Loss function of PINNs or gPINNs."""
-        # x.stop_gradient = False
-        loss = []
         loss = self.model.PDE(x, y)
         loss_f = loss[0]
         if not self.whatPINNs():
-            loss_g = loss[1]
-            return paddle.mean(paddle.square(loss_f)) + self.model.w_g * paddle.mean(paddle.square(loss_g))
+            if len(loss) == 2:
+                loss_g = loss[1]
+                return \
+                    self.model.w_f * paddle.mean(paddle.square(loss_f)) \
+                    + self.model.w_g * paddle.mean(paddle.square(loss_g))
+            elif len(loss) > 2:
+                loss_g = 0
+                for loss_ in loss[1:]:
+                    loss_g += self.model.w_g * loss_
+                return \
+                    self.model.w_f * paddle.mean(paddle.square(loss_f)) \
+                    + self.model.w_g * paddle.mean(paddle.square(loss_g))
         return paddle.mean(paddle.square(loss_f))
 
     @staticmethod
@@ -126,6 +137,13 @@ class Solver(object):
         else:
             y_pred = np.array(y_pred)
             return np.linalg.norm(y_true - y_pred) / np.linalg.norm(y_true)
+
+    @staticmethod
+    def mean_l2_relative_error(y_true, y_pred):
+        """Compute the average of L2 relative error along the first axis."""
+        return np.mean(
+            np.linalg.norm(y_true - y_pred, axis=1) / np.linalg.norm(y_true, axis=1)
+        )
 
     def reset_grad(self):
         """Reset the gradient buffers."""
@@ -195,7 +213,7 @@ class Solver(object):
                 et = str(datetime.timedelta(seconds=et))[:-7]
                 log = "Elapsed [{}], Iteration [{}/{}]".format(et, epoch+1, self.num_epochs)
                 for tag, value in loss.items():
-                    log += ", {}: {:.4f}".format(tag, value)
+                    log += ", {}: {:.2e}".format(tag, value)
                 print(log)
 
             # # Print out testing information
@@ -236,7 +254,7 @@ class Solver(object):
     def predict(self, X):
         """Predict with trained model."""
         if not isinstance(X, paddle.Tensor):
-            X = paddle.to_tensor(X)
+            X = paddle.to_tensor(X, dtype='float32')
         # Loading trained model
         self.model.net.eval()
         X.stop_gradient = False
@@ -244,4 +262,3 @@ class Solver(object):
         y_pred = self.model(X)
         dy_x_pred = paddle.grad(y_pred, X, retain_graph=False, create_graph=False)[0]
         return [y_pred, dy_x_pred]
-
