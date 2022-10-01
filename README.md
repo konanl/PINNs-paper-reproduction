@@ -51,12 +51,12 @@
 |                          论文 Fig.2                          | 复现 Fig2                                                    |
 | :----------------------------------------------------------: | ------------------------------------------------------------ |
 | <img src="./result/figure/poisson/Fig2_A.png" alt="L2 relative error of u (A)" style="zoom:67%;" /> | <img src="./result/figure/poisson/figure2_A.png" alt="L2 relative error of u (A)" style="zoom:50%;" /> |
-| <img src="./result/figure/poisson/Fig2_B.png" alt="L2 relative error of u` (B)" style="zoom:67%;" /> | <img src="./result/figure/poisson/figure2_B.png" alt="L2 relative error of u` (B)" style="zoom:50%;" /> |
+| <img src="./result/figure/poisson/Fig2_B.png" alt="L2 relative error of u` (B)" style="zoom:67%;" /> | <img src="./result/figure/poisson/figure2_B.png" alt="L2 relative error of u` (B)" style="zoom:50%;" /> | <img src="./result/figure/poisson/figure2_B.png" alt="L2 relative error of u` (B)" style="zoom:50%;" /> |
 | <img src="./result/figure/poisson/Fig2_C.png" alt="Mean pde residual (C)" style="zoom:67%;" /> | <img src="./result/figure/poisson/figure2_C.png" alt="Mean pde residual (C)" style="zoom:50%;" /> |
 | <img src="./result/figure/poisson/Fig2_D.png" alt="u (D)" style="zoom:67%;" /> | <img src="./result/figure/poisson/u.png" alt="u (D)" style="zoom:50%;" /> |
-| <img src="./result/figure/poisson/Fig2_E.png" alt="u` (E)" style="zoom:67%;" /> | <img src="./result/figure/poisson/u`.png" alt="u` (E)" style="zoom:50%;" /> |
+| <img src="./result/figure/poisson/Fig2_E.png" alt="u` (E)" style="zoom:67%;" /> | <img src="./result/figure/poisson/u`.png" alt="u` (E)" style="zoom:50%;" /> | <img src="./result/figure/poisson/u`.png" alt="u` (E)" style="zoom:50%;" /> |
 | <img src="./result/figure/poisson/Fig2_F.png" alt="L2 relative error of u (F)" style="zoom:67%;" /> | <img src="./result/figure/poisson/figure2_F.png" alt="L2 relative error of u (F)" style="zoom:50%;" /> |
-| <img src="./result/figure/poisson/Fig2_G.png" alt="L2 relative error of u` (G)" style="zoom:67%;" /> | <img src="./result/figure/poisson/figure2_G.png" alt="L2 relative error of u` (G)" style="zoom:50%;" /> |
+| <img src="./result/figure/poisson/Fig2_G.png" alt="L2 relative error of u` (G)" style="zoom:67%;" /> | <img src="./result/figure/poisson/figure2_G.png" alt="L2 relative error of u` (G)" style="zoom:50%;" /> | <img src="./result/figure/poisson/figure2_G.png" alt="L2 relative error of u` (G)" style="zoom:50%;" /> |
 
 - **出现的问题：**
 
